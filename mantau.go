@@ -3,22 +3,21 @@ package mantau
 import (
 	"errors"
 	"reflect"
+	"time"
 )
 
-// Mantau instance
-type mantau struct {
-	tag string
-}
-
-// Create a new mantau instance
-func New(tag string) *mantau {
-	// Struct tag for mapping, the default is "json"
-	if tag == "" {
-		tag = "json"
+type (
+	// Mantau instance
+	mantau struct {
+		opt *Options
 	}
 
-	return &mantau{tag}
-}
+	// Mantau options
+	Options struct {
+		// Struct tag specify a custom tag to match with the schema when transforming a struct
+		StructTag string `json:"struct_tag"`
+	}
+)
 
 type (
 	// A schema describing of how a data should be transformed
@@ -50,6 +49,21 @@ var (
 	Other   DataType = "other"
 	Nil     DataType = "nil"
 )
+
+// Create a new mantau instance
+// And set the default options
+func New() *mantau {
+	return &mantau{
+		opt: &Options{
+			StructTag: "json",
+		},
+	}
+}
+
+// Override the default mantau options
+func (m *mantau) SetOpt(opt *Options) {
+	m.opt = opt
+}
 
 // Transform a data with the given schema
 func (m *mantau) Transform(src interface{}, schema Schema) (interface{}, error) {
@@ -115,8 +129,22 @@ func (m *mantau) getPtrValue(src interface{}) interface{} {
 	return reflect.ValueOf(src).Elem().Interface()
 }
 
+// Check if source is the type of built-in struct type such as time.Time
+func (m *mantau) isCustomStruct(src interface{}) bool {
+	switch src.(type) {
+	case time.Time:
+		return true
+	}
+
+	return false
+}
+
 // Begin the transforming process
 func (m *mantau) execute(src interface{}, dataType DataType, schema Schema) (interface{}, error) {
+	if src == nil {
+		return nil, nil
+	}
+
 	switch dataType {
 	case Struct:
 		return m.transformStruct(src, schema)
@@ -139,6 +167,10 @@ func (m *mantau) transformValue(s interface{}, t DataType, f Schema) (interface{
 
 	switch t {
 	case Struct:
+		if m.isCustomStruct(s) {
+			return s, nil
+		}
+
 		return m.transformStruct(s, f)
 	case Slice:
 		return m.transformCollections(s, f)
@@ -149,10 +181,9 @@ func (m *mantau) transformValue(s interface{}, t DataType, f Schema) (interface{
 	case Pointer:
 		value := m.getPtrValue(s)
 
-		return m.transformValue(
-			value,
-			m.getDataType(value),
-			f)
+		return m.transformValue(value, m.getDataType(value), f)
+	case Other:
+		return s, nil
 	}
 
 	return nil, nil
@@ -160,6 +191,10 @@ func (m *mantau) transformValue(s interface{}, t DataType, f Schema) (interface{
 
 // Transforming a struct with the given schema
 func (m *mantau) transformStruct(src interface{}, schema Schema) (Result, error) {
+	if src == nil {
+		return nil, nil
+	}
+
 	result := Result{}
 	srcValue := m.getValue(src)
 	srcType := m.getType(src)
@@ -201,8 +236,12 @@ func (m *mantau) transformStruct(src interface{}, schema Schema) (Result, error)
 }
 
 // Transforming a collections of data could be slice or array
-func (m *mantau) transformCollections(src interface{}, schema Schema) ([]Result, error) {
-	result := make([]Result, 0)
+func (m *mantau) transformCollections(src interface{}, schema Schema) ([]interface{}, error) {
+	if src == nil {
+		return nil, nil
+	}
+
+	result := make([]interface{}, 0)
 	srcValue := m.getValue(src)
 
 	for i := 0; i < srcValue.Len(); i++ {
@@ -219,6 +258,11 @@ func (m *mantau) transformCollections(src interface{}, schema Schema) ([]Result,
 			return nil, err
 		}
 
+		if fieldValueType == Other {
+			result = append(result, value)
+			continue
+		}
+
 		res, ok := value.(Result)
 
 		if !ok {
@@ -233,6 +277,10 @@ func (m *mantau) transformCollections(src interface{}, schema Schema) ([]Result,
 
 // Transforming a map with the given schema
 func (m *mantau) transformMap(src interface{}, schema Schema) (Result, error) {
+	if src == nil {
+		return nil, nil
+	}
+
 	result := Result{}
 	srcValue := m.getValue(src)
 
@@ -267,6 +315,7 @@ func (m *mantau) transformMap(src interface{}, schema Schema) (Result, error) {
 }
 
 // Find struct tag based on the field name
+// This is used when matching a struct field with a schema
 func (m *mantau) tagLookup(t reflect.Type, fieldName string) (string, error) {
 	field, ok := t.FieldByName(fieldName)
 
@@ -274,7 +323,11 @@ func (m *mantau) tagLookup(t reflect.Type, fieldName string) (string, error) {
 		return "", errors.New("Cannot find the field")
 	}
 
-	tag, ok := field.Tag.Lookup(m.tag)
+	tag, ok := field.Tag.Lookup(m.opt.StructTag)
+
+	if tag == "" {
+		return "", nil
+	}
 
 	if !ok {
 		return "", errors.New("Cannot find tag")

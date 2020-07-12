@@ -1,2 +1,3 @@
 test:
-	@go test -v
+	@clear && \
+	go test -v -cover

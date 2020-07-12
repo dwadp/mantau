@@ -1,6 +1,10 @@
 # Mantau
 Mantau is a golang library for transforming data. Mantau is used for transforming struct, map and/or slice of struct by providing a schema of how the data will be transformed.
 
+----------
+**THIS LIBRARY IS STILL UNDER DEVELOPMENT AND CANNOT BE USED YET**
+
+
 ### Installation
 To start using mantau, first you need to install the library by running the following command:
 ```bash
@@ -8,30 +12,111 @@ go get -u github.com/dwadp/mantau
 ```
 
 ### A Brief Explanation
-Creating a mantau instance
-
+#### Creating instance
+When creating a mantau instance, a default options will be passed for initialization. A default struct tag will be set as `json`.
 ```go
-mantau.New("")
+mantau.New()
 ```
 
-When creating a mantau instance, you just need to pass one argument which will be used to look for struct tag for the given data. You can pass an empty string to set the default tag which is a `json` tag.
+#### Overriding options
+You can ovveride mantau default options by calling `SetOpt` function and pass a `mantau.Options`.
+```go
+m := mantau.New()
 
-When transforming a data, mantau will match with the provied schema.
+// Override the default mantau options
+m.SetOpt(&mantau.Options{
+    StructTag: "acustomstructtag"
+})
+```
+
+#### Schema
+When transforming a data, mantau will match the data with the provied schema. For examples:
 
 ```go
-// A schema describing of how a data should be transformed
-Schema map[string]SchemaField
+package main
 
-SchemaField struct {
-    // The key should be match with struct tag when initializing mantau instance
-    // If the data is a type of map, the key should match with the map key
-    Key string
+import "github.com/dwadp/mantau"
 
-    // Value will be use for nested schema when transforming nested data
-    // You can pass a Schema when dealing with nested data or leave it to nil
-    Value interface{}
+type AStruct struct {
+    FieldOne string `schema:"field_one"`
+    FieldTwo string `schema:"field_two"`
+}
+
+func main() {
+    m := mantau.New()
+
+    // Setting the struct tag to a custom tag 'schema'
+    m.SetOpt(&mantau.Options{
+        StructTag: "schema",
+    })
+
+    // Transforming a struct
+    m.Transform(AStruct{
+        FieldOne: "Struct value one",
+        FieldTwo: "Struct value two",
+    }, mantau.Schema{
+        "one": SchemaField{
+            // Key should match with the struct tag 'schema'
+            Key: "field_one"
+        },
+        "two": SchemaField{
+            // Key should match with the struct tag 'schema'
+            Key: "field_two"
+        },
+    })
+
+    // Transforming a map
+    m.Transform(map[string]interface{}{
+        "key_one": "Map value one",
+        "key_two": "Map value two",
+    }, mantau.Schema{
+        "one": mantau.SchemaField{
+            // Key should match with the 'map key'
+            Key: "key_one",
+        },
+        "two": mantau.SchemaField{
+            // Key should match with the 'map key'
+            Key: "key_two",
+        },
+    })
+
+    // Transforming nested data structure
+    m.Transform(map[string]interface{}{
+        "key_one": "Value one",
+        "key_two": "Value two",
+        "nested": AStruct{
+            FieldOne: "Struct value one",
+            FieldTwo: "Struct value two",
+        },
+    }, mantau.Schema{
+        "one": mantau.SchemaField{
+            // Key should match with the 'map key'
+            Key: "key_one",
+        },
+        "two": mantau.SchemaField{
+            // Key should match with the 'map key'
+            Key: "key_two",
+        },
+        "three": mantau.SchemaField{
+            // Key should match with the 'map key'
+            Key: "nested",
+            // Use 'Value' for a schema of a nested data structure
+            Value: mantau.Schema{
+                "one": mantau.SchemaField{
+                    // Key should match with the 'map key'
+                    Key: "key_one",
+                },
+                "two": mantau.SchemaField{
+                    // Key should match with the 'map key'
+                    Key: "key_two",
+                },
+            },
+        },
+    })
 }
 ```
+
+In `mantau.SchemaField` you can leave the `Value` field to nil or omit it if you are not dealing with a nested data structure.
 
 ### Examples
 Below are some examples on how to use this library.
@@ -55,7 +140,7 @@ type User struct {
 }
 
 func main() {
-    m := mantau.New("json")
+    m := mantau.New()
 
     isActive := true
 
@@ -108,7 +193,7 @@ type User struct {
 }
 
 func main() {
-    m := mantau.New("")
+    m := mantau.New()
 
     active := true
     inactive := false
@@ -163,5 +248,7 @@ will result:
 ]
 ```
 
-----------
-**THIS LIBRARY IS STILL UNDER DEVELOPMENT AND CANNOT BE USED YET**
+# TODO
+- Write more tests
+- Write documentation
+- Fix more bugs
