@@ -4,6 +4,8 @@ import (
 	"reflect"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/assert"
 )
 
 type (
@@ -47,105 +49,112 @@ type (
 	}
 )
 
-// Test data type checking
-func TestDataTypeChecking(t *testing.T) {
-	mantauInstance := New()
+// Test data kind checking
+func TestDataKindChecking(t *testing.T) {
+	m := New()
 
-	// Should pass a data of struct type either
-	// a struct
-	// a pointer of struct
-	t.Run("ShouldPassStructType", func(t *testing.T) {
+	// Should pass a data of struct type either of: a struct, a pointer of struct
+	t.Run("ShouldReturnStructAndPointerKind", func(t *testing.T) {
+		t.Helper()
+
 		src := User{}
+		result := m.getDataKind(src)
+		resultPtr := m.getDataKind(&src)
 
-		if _, err := mantauInstance.Transform(src, nil); err != nil {
-			t.Error(err)
-		}
+		want := Struct
+		wantPtr := Pointer
+		dontWant := Other
 
-		if _, err := mantauInstance.Transform(&src, nil); err != nil {
-			t.Error(err)
-		}
+		assert.NotEqual(t, dontWant, result)
+		assert.NotEqual(t, dontWant, resultPtr)
+
+		assert.Equal(t, want, result)
+		assert.Equal(t, wantPtr, resultPtr)
 	})
 
-	// Should pass a data of map type either
-	// a map
-	// a pointer of map
-	t.Run("ShouldPassMapType", func(t *testing.T) {
+	// Should pass a data of map type either of: a map, a pointer of map
+	t.Run("ShouldReturnMapAndPointerKind", func(t *testing.T) {
+		t.Helper()
+
 		src := map[string]interface{}{}
-		srcString := map[string]string{}
 
-		if _, err := mantauInstance.Transform(src, nil); err != nil {
-			t.Error(err)
-		}
+		result := m.getDataKind(src)
+		resultPtr := m.getDataKind(&src)
 
-		if _, err := mantauInstance.Transform(&src, nil); err != nil {
-			t.Error(err)
-		}
+		want := Map
+		wantPtr := Pointer
+		dontWant := Other
 
-		if _, err := mantauInstance.Transform(srcString, nil); err != nil {
-			t.Error(err)
-		}
+		assert.NotEqual(t, dontWant, result)
+		assert.NotEqual(t, dontWant, resultPtr)
 
-		if _, err := mantauInstance.Transform(&srcString, nil); err != nil {
-			t.Error(err)
-		}
+		assert.Equal(t, want, result)
+		assert.Equal(t, wantPtr, resultPtr)
 	})
 
-	// Should pass a data of slice type either
-	// a slice
-	// a pointer of slice
+	// Should pass a data of slice type either of: a slice, a pointer of slice,
 	// a pointer of struct slice
-	t.Run("ShouldPassSliceType", func(t *testing.T) {
+	t.Run("ShouldReturnSliceAndPointerKind", func(t *testing.T) {
+		t.Helper()
+
 		src := make([]User, 3)
 		srcPtrOfStruct := make([]*User, 3)
 
-		if _, err := mantauInstance.Transform(src, nil); err != nil {
-			t.Error(err)
-		}
+		result := m.getDataKind(src)
+		resultPtr := m.getDataKind(&src)
 
-		if _, err := mantauInstance.Transform(srcPtrOfStruct, nil); err != nil {
-			t.Error(err)
-		}
+		resultStruct := m.getDataKind(srcPtrOfStruct)
+		resultStructPtr := m.getDataKind(&srcPtrOfStruct)
 
-		if _, err := mantauInstance.Transform(&src, nil); err != nil {
-			t.Error(err)
-		}
+		want := Slice
+		wantPtr := Pointer
+		dontWant := Other
+
+		assert.NotEqual(t, dontWant, result)
+		assert.NotEqual(t, dontWant, resultPtr)
+
+		assert.NotEqual(t, dontWant, resultStruct)
+		assert.NotEqual(t, dontWant, resultStructPtr)
+
+		assert.Equal(t, want, result)
+		assert.Equal(t, wantPtr, resultPtr)
+
+		assert.Equal(t, want, resultStruct)
+		assert.Equal(t, wantPtr, resultStructPtr)
 	})
+}
 
-	// Should return error if we pass a type other than
-	// Struct
-	// Map
-	// Slice or Array
-	t.Run("ShouldReturnErrorOfUknownType", func(t *testing.T) {
-		if _, err := mantauInstance.Transform(0, nil); err == nil {
-			t.Error("Transforming a data of type int should return an error")
-		}
+// Should return error if we pass a type other than, Struct, Map, Slice or Array
+func TestTransform(t *testing.T) {
+	m := New()
 
-		if _, err := mantauInstance.Transform("john doe", nil); err == nil {
-			t.Error("Transforming a data of type string should return an error")
-		}
+	_, err := m.Transform(0, nil)
 
-		if _, err := mantauInstance.Transform(true, nil); err == nil {
-			t.Error("Transforming a data of type boolean should return an error")
-		}
-	})
+	assert.Error(t, err, "Should return an error")
+
+	_, err = m.Transform("john doe", nil)
+
+	assert.Error(t, err, "Should return an error")
+
+	_, err = m.Transform(true, nil)
+
+	assert.Error(t, err, "Should return an error")
 }
 
 func TestTransformData(t *testing.T) {
 	m := New()
 
 	testStructTransforming(t, m)
-
 	testSliceTransforming(t, m)
-
 	testArrayTransforming(t, m)
-
 	testMapTransforming(t, m)
-
 	testWithCustomTag(t)
 }
 
 func testStructTransforming(t *testing.T, m *mantau) {
 	t.Run("ShouldPassStructTransforming", func(t *testing.T) {
+		t.Helper()
+
 		isActive := true
 
 		result, err := m.Transform(User{
@@ -212,14 +221,6 @@ func testStructTransforming(t *testing.T, m *mantau) {
 			},
 		})
 
-		if err != nil {
-			t.Error(err)
-		}
-
-		if result == nil {
-			t.Errorf("Transform should return a data")
-		}
-
 		want := Result{
 			"useremail": "johndoe@example.com",
 			"username":  "John doe",
@@ -240,48 +241,16 @@ func testStructTransforming(t *testing.T, m *mantau) {
 			},
 		}
 
-		res := result.(Result)
-
-		address := res["address"].(Result)
-		permissions := res["user_permissions"].([]interface{})
-		products := res["products"].([]interface{})
-
-		permissionsAssert := []Result{}
-		productsAssert := []Result{}
-
-		resultAssert := Result{
-			"useremail": res["useremail"],
-			"username":  res["username"],
-			"active":    res["active"],
-			"address": Result{
-				"address": address["address"],
-				"code":    address["code"],
-			},
-		}
-
-		for _, v := range permissions {
-			value := v.(Result)
-
-			permissionsAssert = append(permissionsAssert, value)
-		}
-
-		for _, v := range products {
-			value := v.(Result)
-
-			productsAssert = append(productsAssert, value)
-		}
-
-		resultAssert["user_permissions"] = permissionsAssert
-		resultAssert["products"] = productsAssert
-
-		if !reflect.DeepEqual(resultAssert, want) {
-			t.Errorf("The result do not match\nGOT:\n%+v\nWANT:\n%+v\n", resultAssert, want)
-		}
+		assert.NoError(t, err, "Should not return any error")
+		assert.NotNil(t, result, "The result shoud not be a nil value")
+		assert.Equal(t, want, result, "The result do not match")
 	})
 }
 
 func testSliceTransforming(t *testing.T, m *mantau) {
 	t.Run("ShouldPassSliceOfStructTransforming", func(t *testing.T) {
+		t.Helper()
+
 		sliceOfStruct, err := m.Transform([]Permission{
 			{"Admin", 0},
 			{"Customer", 1},
@@ -291,14 +260,6 @@ func testSliceTransforming(t *testing.T, m *mantau) {
 				Key: "permission_name",
 			},
 		})
-
-		if err != nil {
-			t.Error(err)
-		}
-
-		if sliceOfStruct == nil {
-			t.Errorf("Transform should return a data")
-		}
 
 		sliceOfStructResult := []Result{}
 		sliceOfStructWant := []Result{
@@ -314,15 +275,14 @@ func testSliceTransforming(t *testing.T, m *mantau) {
 			sliceOfStructResult = append(sliceOfStructResult, result)
 		}
 
-		if !reflect.DeepEqual(sliceOfStructResult, sliceOfStructResult) {
-			t.Errorf(
-				"Transformed result do not match\nGOT:%+v\nWANT:\n%+v\n",
-				sliceOfStructResult,
-				sliceOfStructWant)
-		}
+		assert.NoError(t, err, "Should not return any error")
+		assert.NotNil(t, sliceOfStruct, "The result should not be a nil value")
+		assert.Equal(t, sliceOfStructWant, sliceOfStructResult, "The result do not match")
 	})
 
 	t.Run("ShouldPassSliceOfMapTransforming", func(t *testing.T) {
+		t.Helper()
+
 		sliceOfMap, err := m.Transform([]map[string]interface{}{
 			{"product_name": "Apple", "product_price": 1.50, "product_qty": 50},
 			{"product_name": "Banana", "product_price": 2.50, "product_qty": 20},
@@ -336,14 +296,6 @@ func testSliceTransforming(t *testing.T, m *mantau) {
 				Key: "product_price",
 			},
 		})
-
-		if err != nil {
-			t.Error(err)
-		}
-
-		if sliceOfMap == nil {
-			t.Errorf("Transform should return a data")
-		}
 
 		sliceOfMapResult := []Result{}
 		sliceOfMapWant := []Result{
@@ -360,17 +312,16 @@ func testSliceTransforming(t *testing.T, m *mantau) {
 			sliceOfMapResult = append(sliceOfMapResult, result)
 		}
 
-		if !reflect.DeepEqual(sliceOfMapResult, sliceOfMapWant) {
-			t.Errorf(
-				"The result do not match\nGOT:\n%+v\nWANT:\n%+v\n",
-				sliceOfMapResult,
-				sliceOfMapWant)
-		}
+		assert.NoError(t, err, "Should not return any error")
+		assert.NotNil(t, sliceOfMap, "The resultl shoud not be a nil value")
+		assert.Equal(t, sliceOfMapWant, sliceOfMapResult, "The result do not match")
 	})
 }
 
 func testArrayTransforming(t *testing.T, m *mantau) {
 	t.Run("ShouldPassArrayOfStructTransforming", func(t *testing.T) {
+		t.Helper()
+
 		arrayOfStruct, err := m.Transform([3]Permission{
 			{"Admin", 0},
 			{"Customer", 1},
@@ -380,14 +331,6 @@ func testArrayTransforming(t *testing.T, m *mantau) {
 				Key: "permission_name",
 			},
 		})
-
-		if err != nil {
-			t.Error(err)
-		}
-
-		if arrayOfStruct == nil {
-			t.Errorf("Transform should return a data")
-		}
 
 		arrayOfStructResult := [3]Result{}
 		arrayOfStructWant := [3]Result{
@@ -403,15 +346,14 @@ func testArrayTransforming(t *testing.T, m *mantau) {
 			arrayOfStructResult[i] = result
 		}
 
-		if !reflect.DeepEqual(arrayOfStructResult, arrayOfStructResult) {
-			t.Errorf(
-				"Transformed result do not match\nGOT:%+v\nWANT:\n%+v\n",
-				arrayOfStructResult,
-				arrayOfStructWant)
-		}
+		assert.NoError(t, err, "Should not return any error")
+		assert.NotNil(t, arrayOfStruct, "The result should not be a nil value")
+		assert.Equal(t, arrayOfStructWant, arrayOfStructResult, "The result do not match")
 	})
 
 	t.Run("ShouldPassArrayOfMapTransforming", func(t *testing.T) {
+		t.Helper()
+
 		arrayOfMap, err := m.Transform([4]map[string]interface{}{
 			{"product_name": "Apple", "product_price": 1.50, "product_qty": 50},
 			{"product_name": "Banana", "product_price": 2.50, "product_qty": 20},
@@ -425,14 +367,6 @@ func testArrayTransforming(t *testing.T, m *mantau) {
 				Key: "product_price",
 			},
 		})
-
-		if err != nil {
-			t.Error(err)
-		}
-
-		if arrayOfMap == nil {
-			t.Errorf("Transform should return a data")
-		}
 
 		arrayOfMapResult := [4]Result{}
 		arrayOfMapWant := [4]Result{
@@ -449,17 +383,16 @@ func testArrayTransforming(t *testing.T, m *mantau) {
 			arrayOfMapResult[i] = result
 		}
 
-		if !reflect.DeepEqual(arrayOfMapResult, arrayOfMapWant) {
-			t.Errorf(
-				"The result do not match\nGOT:\n%+v\nWANT:\n%+v\n",
-				arrayOfMapResult,
-				arrayOfMapWant)
-		}
+		assert.NoError(t, err, "Should not return any error")
+		assert.NotNil(t, arrayOfMap, "The result should not be a nil value")
+		assert.Equal(t, arrayOfMapWant, arrayOfMapResult, "The result do not match")
 	})
 }
 
 func testMapTransforming(t *testing.T, m *mantau) {
 	t.Run("ShouldPassMapTransforming", func(t *testing.T) {
+		t.Helper()
+
 		result, err := m.Transform(map[string]interface{}{
 			"name":        "Apple",
 			"qty":         10,
@@ -490,16 +423,6 @@ func testMapTransforming(t *testing.T, m *mantau) {
 			},
 		})
 
-		if err != nil {
-			t.Error(err)
-		}
-
-		// fmt.Printf("%+v\n", result)
-
-		if result == nil {
-			t.Errorf("Transform should return a data")
-		}
-
 		want := Result{
 			"product_name": "Apple",
 			"product_qty":  10,
@@ -509,15 +432,17 @@ func testMapTransforming(t *testing.T, m *mantau) {
 			},
 		}
 
-		if !reflect.DeepEqual(result, want) {
-			t.Errorf("The result do not match\nGOT:\n%+v\nWANT:\n%+v\n", result, want)
-		}
+		assert.NoError(t, err, "Should not return any error")
+		assert.NotNil(t, result, "The result should not be a nil value")
+		assert.Equal(t, want, result, "The result do not match")
 	})
 }
 
 func testWithCustomTag(t *testing.T) {
 	t.Run("ShouldPassTransformingACustomTag", func(t *testing.T) {
-		var price float32 = 2769
+		t.Helper()
+
+		var price float32 = 2769.99
 
 		m := New()
 		m.SetOpt(&Options{
@@ -542,30 +467,15 @@ func testWithCustomTag(t *testing.T) {
 			},
 		})
 
-		if err != nil {
-			t.Error(err)
-		}
-
-		if result == nil {
-			t.Error("Transform should return a data")
-		}
-
 		want := Result{
 			"name":  "Apple",
 			"price": price,
 			"qty":   100,
 		}
 
-		res := result.(Result)
-		mappedResult := Result{
-			"name":  res["name"].(string),
-			"price": res["price"].(float32),
-			"qty":   res["qty"].(int),
-		}
-
-		if !reflect.DeepEqual(mappedResult, want) {
-			t.Errorf("The result do not match\nGOT:\n%+v\nWANT:\n%+v\n", mappedResult, want)
-		}
+		assert.NoError(t, err, "Should not return any error")
+		assert.NotNil(t, result, "The result should not be a nil value")
+		assert.Equal(t, want, result, "The result do not match")
 	})
 }
 
@@ -584,13 +494,8 @@ func TestTransformWithNil(t *testing.T) {
 			},
 		})
 
-		if err != nil {
-			t.Error(err)
-		}
-
-		if result != nil {
-			t.Error("Transforming a nil value sould return nil")
-		}
+		assert.NoError(t, err, "Should not return any error")
+		assert.Nil(t, result, "The result should be a nil value")
 	})
 
 	t.Run("TransformStructShouldReturnNilIfTheValueIsNil", func(t *testing.T) {
@@ -605,13 +510,8 @@ func TestTransformWithNil(t *testing.T) {
 			},
 		})
 
-		if err != nil {
-			t.Error(err)
-		}
-
-		if result != nil {
-			t.Error("Transforming a nil value sould return nil")
-		}
+		assert.NoError(t, err, "Should not return any error")
+		assert.Nil(t, result, "The result should be a nil value")
 	})
 
 	t.Run("TransformCollectionsShouldReturnNilIfTheValueIsNil", func(t *testing.T) {
@@ -626,13 +526,8 @@ func TestTransformWithNil(t *testing.T) {
 			},
 		})
 
-		if err != nil {
-			t.Error(err)
-		}
-
-		if result != nil {
-			t.Error("Transforming a nil value sould return nil")
-		}
+		assert.NoError(t, err, "Should not return any error")
+		assert.Nil(t, result, "The result should be a nil value")
 	})
 
 	t.Run("TransformMapShouldReturnNilIfTheValueIsNil", func(t *testing.T) {
@@ -647,13 +542,8 @@ func TestTransformWithNil(t *testing.T) {
 			},
 		})
 
-		if err != nil {
-			t.Error(err)
-		}
-
-		if result != nil {
-			t.Error("Transforming a nil value sould return nil")
-		}
+		assert.NoError(t, err, "Should not return any error")
+		assert.Nil(t, result, "The result should be a nil value")
 	})
 }
 
@@ -692,10 +582,6 @@ func TestTransformStruct(t *testing.T) {
 			},
 		})
 
-		if err != nil {
-			t.Error(err)
-		}
-
 		want := Result{
 			"book_title":       "A new book",
 			"book_description": "Description of a new book",
@@ -705,20 +591,9 @@ func TestTransformStruct(t *testing.T) {
 			},
 		}
 
-		resultTags := result["book_tags"].([]interface{})
-		tags := []string{}
-
-		for _, v := range resultTags {
-			tag := v.(string)
-
-			tags = append(tags, tag)
-		}
-
-		result["book_tags"] = tags
-
-		if !reflect.DeepEqual(result, want) {
-			t.Errorf("The result do not match\nGOT:\n%+v\nWANT:\n%+v\n", result, want)
-		}
+		assert.NoError(t, err, "Should not return any error")
+		assert.NotNil(t, result, "The result should not be a nil value")
+		assert.Equal(t, want, result, "The result do not match")
 	})
 
 	t.Run("SouldReturnNilWhenTransformingNilValue", func(t *testing.T) {
@@ -730,13 +605,8 @@ func TestTransformStruct(t *testing.T) {
 			},
 		})
 
-		if err != nil {
-			t.Error(err)
-		}
-
-		if result != nil {
-			t.Error("Transforming a nil value should return a nil result")
-		}
+		assert.NoError(t, err, "Should not return any error")
+		assert.Nil(t, result, "The result should be a nil value")
 	})
 
 	t.Run("SouldTransformANilValueInsideStruct", func(t *testing.T) {
@@ -770,10 +640,6 @@ func TestTransformStruct(t *testing.T) {
 			},
 		})
 
-		if err != nil {
-			t.Error(err)
-		}
-
 		want := Result{
 			"book_title":       "A new book",
 			"book_description": "Description of a new book",
@@ -781,20 +647,9 @@ func TestTransformStruct(t *testing.T) {
 			"book_author":      nil,
 		}
 
-		resultTags := result["book_tags"].([]interface{})
-		tags := []string{}
-
-		for _, v := range resultTags {
-			tag := v.(string)
-
-			tags = append(tags, tag)
-		}
-
-		result["book_tags"] = tags
-
-		if !reflect.DeepEqual(result, want) {
-			t.Errorf("The result do not match\nGOT:\n%+v\nWANT:\n%+v\n", result, want)
-		}
+		assert.NoError(t, err, "Should not return any error")
+		assert.NotNil(t, result, "The result shoud not be a nil value")
+		assert.Equal(t, want, result, "The result do not match")
 	})
 }
 
@@ -848,10 +703,6 @@ func TestTransformCollections(t *testing.T) {
 			},
 		})
 
-		if err != nil {
-			t.Error(err)
-		}
-
 		want := []Result{
 			{
 				"book_title":       "A new book",
@@ -873,28 +724,9 @@ func TestTransformCollections(t *testing.T) {
 			},
 		}
 
-		results := []Result{}
-
-		for _, v := range result {
-			value := v.(Result)
-
-			resultTags := value["book_tags"].([]interface{})
-			tags := []string{}
-
-			for _, v := range resultTags {
-				tag := v.(string)
-
-				tags = append(tags, tag)
-			}
-
-			value["book_tags"] = tags
-
-			results = append(results, value)
-		}
-
-		if !reflect.DeepEqual(results, want) {
-			t.Errorf("The result do not match\nGOT:\n%+v\nWANT:\n%+v\n", results, want)
-		}
+		assert.NoError(t, err, "Should not return any error")
+		assert.NotNil(t, result, "The result should not be a nil value")
+		assert.Equal(t, want, result, "The result do not match")
 	})
 
 	t.Run("SouldTransformAnArrayOfStruct", func(t *testing.T) {
@@ -944,10 +776,6 @@ func TestTransformCollections(t *testing.T) {
 			},
 		})
 
-		if err != nil {
-			t.Error(err)
-		}
-
 		want := [2]Result{
 			{
 				"book_title":       "A new book",
@@ -972,25 +800,12 @@ func TestTransformCollections(t *testing.T) {
 		results := [2]Result{}
 
 		for k, v := range result {
-			value := v.(Result)
-
-			resultTags := value["book_tags"].([]interface{})
-			tags := []string{}
-
-			for _, v := range resultTags {
-				tag := v.(string)
-
-				tags = append(tags, tag)
-			}
-
-			value["book_tags"] = tags
-
-			results[k] = value
+			results[k] = v
 		}
 
-		if !reflect.DeepEqual(results, want) {
-			t.Errorf("The result do not match\nGOT:\n%+v\nWANT:\n%+v\n", results, want)
-		}
+		assert.NoError(t, err, "Should not return any error")
+		assert.NotNil(t, result, "The result should not be a nil value")
+		assert.Equal(t, want, results, "The result do not match")
 	})
 
 	t.Run("SouldTransformASliceOfMap", func(t *testing.T) {
@@ -1038,10 +853,6 @@ func TestTransformCollections(t *testing.T) {
 			},
 		})
 
-		if err != nil {
-			t.Error(err)
-		}
-
 		want := []Result{
 			{
 				"book_title":       "A new book",
@@ -1063,28 +874,9 @@ func TestTransformCollections(t *testing.T) {
 			},
 		}
 
-		results := []Result{}
-
-		for _, v := range result {
-			value := v.(Result)
-
-			resultTags := value["book_tags"].([]interface{})
-			tags := []string{}
-
-			for _, v := range resultTags {
-				tag := v.(string)
-
-				tags = append(tags, tag)
-			}
-
-			value["book_tags"] = tags
-
-			results = append(results, value)
-		}
-
-		if !reflect.DeepEqual(results, want) {
-			t.Errorf("The result do not match\nGOT:\n%+v\nWANT:\n%+v\n", results, want)
-		}
+		assert.NoError(t, err, "Should not return any error")
+		assert.NotNil(t, result, "The result should not be a nil value")
+		assert.Equal(t, want, result, "The result do not match")
 	})
 
 	t.Run("SouldTransformAnArrayOfMap", func(t *testing.T) {
@@ -1132,10 +924,6 @@ func TestTransformCollections(t *testing.T) {
 			},
 		})
 
-		if err != nil {
-			t.Error(err)
-		}
-
 		want := [2]Result{
 			{
 				"book_title":       "A new book",
@@ -1160,25 +948,12 @@ func TestTransformCollections(t *testing.T) {
 		results := [2]Result{}
 
 		for k, v := range result {
-			value := v.(Result)
-
-			resultTags := value["book_tags"].([]interface{})
-			tags := []string{}
-
-			for _, v := range resultTags {
-				tag := v.(string)
-
-				tags = append(tags, tag)
-			}
-
-			value["book_tags"] = tags
-
-			results[k] = value
+			results[k] = v
 		}
 
-		if !reflect.DeepEqual(results, want) {
-			t.Errorf("The result do not match\nGOT:\n%+v\nWANT:\n%+v\n", results, want)
-		}
+		assert.NoError(t, err, "Should not return any error")
+		assert.NotNil(t, result, "The result should not be a nil value")
+		assert.Equal(t, want, results, "The result do not match")
 	})
 
 	t.Run("SouldReturnNilWhenTransformingNilValue", func(t *testing.T) {
@@ -1190,13 +965,8 @@ func TestTransformCollections(t *testing.T) {
 			},
 		})
 
-		if err != nil {
-			t.Error(err)
-		}
-
-		if result != nil {
-			t.Error("Transforming a nil value should return a nil result")
-		}
+		assert.NoError(t, err, "Should not return any error")
+		assert.Nil(t, result, "The result should be a nil value")
 	})
 }
 
@@ -1206,7 +976,7 @@ func TestTransformMap(t *testing.T) {
 	t.Run("ShouldTransformAMap", func(t *testing.T) {
 		t.Helper()
 
-		movieReleaseDate := time.Date(2019, 12, 13, 0, 0, 0, 0, time.UTC)
+		movieReleaseDate := time.Date(2019, 12, 13, 20, 0, 0, 0, time.UTC)
 
 		result, err := m.transformMap(map[string]interface{}{
 			"name":         "6 Underground",
@@ -1230,10 +1000,6 @@ func TestTransformMap(t *testing.T) {
 			},
 		})
 
-		if err != nil {
-			t.Fatal(err)
-		}
-
 		want := Result{
 			"movieName":        "6 Underground",
 			"movieReleaseDate": movieReleaseDate,
@@ -1241,11 +1007,9 @@ func TestTransformMap(t *testing.T) {
 			"movieBudget":      150000000,
 		}
 
-		result["movieReleaseDate"] = result["movieReleaseDate"].(time.Time)
-
-		if !reflect.DeepEqual(result, want) {
-			t.Errorf("The result do not match\nGOT:\n%+v\nWANT:\n%+v\n", result, want)
-		}
+		assert.NoError(t, err, "Should not return any error")
+		assert.NotNil(t, result, "The result should not be a nil value")
+		assert.Equal(t, want, result, "The result do not match")
 	})
 
 	t.Run("ShouldReturnNilIfValueIsNil", func(t *testing.T) {
@@ -1257,12 +1021,7 @@ func TestTransformMap(t *testing.T) {
 			},
 		})
 
-		if err != nil {
-			t.Fatal(err)
-		}
-
-		if result != nil {
-			t.Error("Transforming a nil value should return a nil result")
-		}
+		assert.NoError(t, err, "Should not return any error")
+		assert.Nil(t, result, "The result should be a nil value")
 	})
 }

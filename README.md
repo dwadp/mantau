@@ -1,9 +1,8 @@
 # Mantau
-Mantau is a golang library for transforming data. Mantau is used for transforming struct, map and/or slice of struct by providing a schema of how the data will be transformed.
+Mantau is a golang library for transforming data. Mantau can be used for transforming struct, map and/or slice of struct by providing a schema of how the data will be transformed.
 
 ----------
 **THIS LIBRARY IS STILL UNDER DEVELOPMENT AND CANNOT BE USED YET**
-
 
 ### Installation
 To start using mantau, first you need to install the library by running the following command:
@@ -13,13 +12,13 @@ go get -u github.com/dwadp/mantau
 
 ### A Brief Explanation
 #### Creating instance
-When creating a mantau instance, a default options will be passed for initialization. A default struct tag will be set as `json`.
+When creating a mantau instance, a default options will be passed for initialization. The default struct tag will be set as `json`.
 ```go
 mantau.New()
 ```
 
 #### Overriding options
-You can ovveride mantau default options by calling `SetOpt` function and pass a `mantau.Options`.
+You can override mantau default options by calling `SetOpt` function and pass a `mantau.Options`.
 ```go
 m := mantau.New()
 

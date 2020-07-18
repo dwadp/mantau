@@ -35,23 +35,22 @@ type (
 	// The result after transforming data
 	Result map[string]interface{}
 
-	// Available data types
-	DataType string
+	// Data kind mapping
+	DataKind string
 )
 
-// Data type declarations
+// Data kind declarations
 var (
-	Struct  DataType = "struct"
-	Map     DataType = "map"
-	Slice   DataType = "slice"
-	Array   DataType = "array"
-	Pointer DataType = "pointer"
-	Other   DataType = "other"
-	Nil     DataType = "nil"
+	Struct  DataKind = "struct"
+	Map     DataKind = "map"
+	Slice   DataKind = "slice"
+	Array   DataKind = "array"
+	Pointer DataKind = "pointer"
+	Other   DataKind = "other"
+	Nil     DataKind = "nil"
 )
 
-// Create a new mantau instance
-// And set the default options
+// Create a new mantau instance and set the default options
 func New() *mantau {
 	return &mantau{
 		opt: &Options{
@@ -67,17 +66,17 @@ func (m *mantau) SetOpt(opt *Options) {
 
 // Transform a data with the given schema
 func (m *mantau) Transform(src interface{}, schema Schema) (interface{}, error) {
-	dataType := m.getDataType(src)
+	dataKind := m.getDataKind(src)
 
-	if dataType == Other {
+	if dataKind == Other {
 		return nil, errors.New("Uknown source type")
 	}
 
-	return m.execute(src, dataType, schema)
+	return m.begin(src, dataKind, schema)
 }
 
 // Get the input data type for further processing
-func (m *mantau) getDataType(src interface{}) DataType {
+func (m *mantau) getDataKind(src interface{}) DataKind {
 	if src == nil {
 		return Nil
 	}
@@ -96,6 +95,38 @@ func (m *mantau) getDataType(src interface{}) DataType {
 	default:
 		return Other
 	}
+}
+
+// Determine if the value doesn't need for further transforming
+func (m *mantau) shouldSkipTransform(src interface{}) bool {
+	switch src.(type) {
+	case time.Time:
+		return true
+	case string:
+		return true
+	case bool:
+		return true
+	case int, int8, int16, int32, int64:
+		return true
+	case uint, uint8, uint16, uint32, uint64:
+		return true
+	case float32, float64:
+		return true
+	case []string:
+		return true
+	case []bool:
+		return true
+	case []int, []int8, []int16, []int32, []int64:
+		return true
+	case []uint, []uint8, []uint16, []uint32, []uint64:
+		return true
+	case []float32, []float64:
+		return true
+	case []time.Time:
+		return true
+	}
+
+	return false
 }
 
 // Get the original value of pointer type
@@ -129,23 +160,13 @@ func (m *mantau) getPtrValue(src interface{}) interface{} {
 	return reflect.ValueOf(src).Elem().Interface()
 }
 
-// Check if source is the type of built-in struct type such as time.Time
-func (m *mantau) isCustomStruct(src interface{}) bool {
-	switch src.(type) {
-	case time.Time:
-		return true
-	}
-
-	return false
-}
-
 // Begin the transforming process
-func (m *mantau) execute(src interface{}, dataType DataType, schema Schema) (interface{}, error) {
+func (m *mantau) begin(src interface{}, dataKind DataKind, schema Schema) (interface{}, error) {
 	if src == nil {
 		return nil, nil
 	}
 
-	switch dataType {
+	switch dataKind {
 	case Struct:
 		return m.transformStruct(src, schema)
 	case Slice:
@@ -160,30 +181,29 @@ func (m *mantau) execute(src interface{}, dataType DataType, schema Schema) (int
 }
 
 // Transform individual value with a given schema
-func (m *mantau) transformValue(s interface{}, t DataType, f Schema) (interface{}, error) {
-	if t == Other {
-		return s, nil
+func (m *mantau) transformValue(src interface{}, dataKind DataKind, schema Schema) (interface{}, error) {
+	if dataKind == Other {
+		return src, nil
 	}
 
-	switch t {
+	if m.shouldSkipTransform(src) {
+		return src, nil
+	}
+
+	switch dataKind {
 	case Struct:
-		if m.isCustomStruct(s) {
-			return s, nil
-		}
-
-		return m.transformStruct(s, f)
+		return m.transformStruct(src, schema)
 	case Slice:
-		return m.transformCollections(s, f)
+		return m.transformCollections(src, schema)
 	case Array:
-		return m.transformCollections(s, f)
+		return m.transformCollections(src, schema)
 	case Map:
-		return m.transformMap(s, f)
+		return m.transformMap(src, schema)
 	case Pointer:
-		value := m.getPtrValue(s)
+		value := m.getPtrValue(src)
+		kind := m.getDataKind(value)
 
-		return m.transformValue(value, m.getDataType(value), f)
-	case Other:
-		return s, nil
+		return m.transformValue(value, kind, schema)
 	}
 
 	return nil, nil
@@ -209,7 +229,7 @@ func (m *mantau) transformStruct(src interface{}, schema Schema) (Result, error)
 
 			if v.Key == tag {
 				fieldValue := srcValue.Field(i).Interface()
-				fieldValueType := m.getDataType(fieldValue)
+				fieldValueType := m.getDataKind(fieldValue)
 
 				if fieldValueType == Nil {
 					continue
@@ -236,17 +256,17 @@ func (m *mantau) transformStruct(src interface{}, schema Schema) (Result, error)
 }
 
 // Transforming a collections of data could be slice or array
-func (m *mantau) transformCollections(src interface{}, schema Schema) ([]interface{}, error) {
+func (m *mantau) transformCollections(src interface{}, schema Schema) ([]Result, error) {
 	if src == nil {
 		return nil, nil
 	}
 
-	result := make([]interface{}, 0)
+	result := make([]Result, 0)
 	srcValue := m.getValue(src)
 
 	for i := 0; i < srcValue.Len(); i++ {
 		fieldValue := srcValue.Index(i).Interface()
-		fieldValueType := m.getDataType(fieldValue)
+		fieldValueType := m.getDataKind(fieldValue)
 
 		if fieldValueType == Nil {
 			continue
@@ -256,11 +276,6 @@ func (m *mantau) transformCollections(src interface{}, schema Schema) ([]interfa
 
 		if err != nil {
 			return nil, err
-		}
-
-		if fieldValueType == Other {
-			result = append(result, value)
-			continue
 		}
 
 		res, ok := value.(Result)
@@ -286,7 +301,7 @@ func (m *mantau) transformMap(src interface{}, schema Schema) (Result, error) {
 
 	for _, mapValue := range srcValue.MapKeys() {
 		fieldValue := srcValue.MapIndex(mapValue).Interface()
-		fieldValueType := m.getDataType(fieldValue)
+		fieldValueType := m.getDataKind(fieldValue)
 
 		if fieldValueType == Nil {
 			continue
