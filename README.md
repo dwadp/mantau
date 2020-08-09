@@ -248,6 +248,4 @@ will result:
 ```
 
 # TODO
-- Write more tests
 - Write documentation
-- Fix more bugs
