@@ -75,7 +75,7 @@ func (m *mantau) Transform(src interface{}, schema Schema) (interface{}, error) 
 	return m.begin(src, dataKind, schema)
 }
 
-// Get the input data type for further processing
+// Get the input data kind for further processing
 func (m *mantau) getDataKind(src interface{}) DataKind {
 	if src == nil {
 		return Nil
@@ -112,6 +112,10 @@ func (m *mantau) shouldSkipTransform(src interface{}) bool {
 		return true
 	case float32, float64:
 		return true
+	case complex64, complex128:
+		return true
+	case []time.Time:
+		return true
 	case []string:
 		return true
 	case []bool:
@@ -122,7 +126,7 @@ func (m *mantau) shouldSkipTransform(src interface{}) bool {
 		return true
 	case []float32, []float64:
 		return true
-	case []time.Time:
+	case []complex64, []complex128:
 		return true
 	}
 
@@ -220,28 +224,28 @@ func (m *mantau) transformStruct(src interface{}, schema Schema) (Result, error)
 	srcType := m.getType(src)
 
 	for i := 0; i < srcValue.NumField(); i++ {
+		fieldValue := srcValue.Field(i).Interface()
+		fieldValueKind := m.getDataKind(fieldValue)
+
+		if fieldValueKind == Nil {
+			continue
+		}
+
+		tag, err := m.tagLookup(srcValue.Type(), srcType.Field(i).Name)
+
+		if err != nil {
+			return nil, err
+		}
+
 		for k, v := range schema {
-			tag, err := m.tagLookup(srcValue.Type(), srcType.Field(i).Name)
-
-			if err != nil {
-				return nil, err
-			}
-
 			if v.Key == tag {
-				fieldValue := srcValue.Field(i).Interface()
-				fieldValueType := m.getDataKind(fieldValue)
-
-				if fieldValueType == Nil {
-					continue
-				}
-
 				schemaValue := schema
 
 				if s, ok := v.Value.(Schema); ok {
 					schemaValue = s
 				}
 
-				value, err := m.transformValue(fieldValue, fieldValueType, schemaValue)
+				value, err := m.transformValue(fieldValue, fieldValueKind, schemaValue)
 
 				if err != nil {
 					return nil, err
@@ -266,13 +270,13 @@ func (m *mantau) transformCollections(src interface{}, schema Schema) ([]Result,
 
 	for i := 0; i < srcValue.Len(); i++ {
 		fieldValue := srcValue.Index(i).Interface()
-		fieldValueType := m.getDataKind(fieldValue)
+		fieldValueKind := m.getDataKind(fieldValue)
 
-		if fieldValueType == Nil {
+		if fieldValueKind == Nil {
 			continue
 		}
 
-		value, err := m.transformValue(fieldValue, fieldValueType, schema)
+		value, err := m.transformValue(fieldValue, fieldValueKind, schema)
 
 		if err != nil {
 			return nil, err
@@ -301,9 +305,9 @@ func (m *mantau) transformMap(src interface{}, schema Schema) (Result, error) {
 
 	for _, mapValue := range srcValue.MapKeys() {
 		fieldValue := srcValue.MapIndex(mapValue).Interface()
-		fieldValueType := m.getDataKind(fieldValue)
+		fieldValueKind := m.getDataKind(fieldValue)
 
-		if fieldValueType == Nil {
+		if fieldValueKind == Nil {
 			continue
 		}
 
@@ -315,7 +319,7 @@ func (m *mantau) transformMap(src interface{}, schema Schema) (Result, error) {
 					schemaValue = s
 				}
 
-				value, err := m.transformValue(fieldValue, fieldValueType, schemaValue)
+				value, err := m.transformValue(fieldValue, fieldValueKind, schemaValue)
 
 				if err != nil {
 					return nil, err
