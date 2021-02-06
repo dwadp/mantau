@@ -2,7 +2,6 @@
 Mantau is a golang library for transforming data. Mantau can be used for transforming struct, map and/or slice of struct by providing a schema of how the data will be transformed.
 
 ----------
-**THIS LIBRARY IS STILL UNDER DEVELOPMENT AND CANNOT BE USED YET**
 
 ### Installation
 To start using mantau, first you need to install the library by running the following command:
@@ -248,6 +247,4 @@ will result:
 ```
 
 # TODO
-- Write more tests
 - Write documentation
-- Fix more bugs
